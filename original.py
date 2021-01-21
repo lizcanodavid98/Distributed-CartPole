@@ -225,7 +225,18 @@ class TrainSolver:
 
 
 if __name__ == "__main__":
-    trainer = TrainSolver(70)
+    # import tensorflow.compat.v1 as tf
+    
+    # tf.enable_v2_behavior()
+    
+    # NUM_PARALLEL_EXEC_UNITS = 4
+    # config = tf.compat.v1.ConfigProto(intra_op_parallelism_threads = NUM_PARALLEL_EXEC_UNITS,
+    #                                    inter_op_parallelism_threads = 2,
+    #                                    allow_soft_placement = True,
+    #                                    device_count = {'CPU': NUM_PARALLEL_EXEC_UNITS})
+    # session = tf.Session(config=config)
+    
+    trainer = TrainSolver(10)
     #trainer.play(play_episodes=10, load_model=False)
     # trainer.train()
     #trainer.play(play_episodes=10, load_model=False)
