@@ -17,8 +17,11 @@ class mySession:
     async def get_something(self, url):
         await fetch_get(self.session, url)
 
-    async def close_session(self):
-        await self.session.close()
+    def close_session(self):
+        asyncio.run(self.__close_session())
+
+    async def __close_session(self):
+        asyncio.run(self.session.close())
 
 def new_session(url):
     s = mySession(url)
@@ -36,9 +39,10 @@ async def fetch_get(session, url):
     async with session.get(url) as resp:
         pass
 
+def start_solver(session, observation_space, action_space):
+    asyncio.run(__start_solver(session, observation_space, action_space))
 
-
-async def start_solver(session, observation_space, action_space):
+async def __start_solver(session, observation_space, action_space):
     solver_params = json.dumps({
             'observation-space': observation_space, 
             'action-space': action_space
@@ -47,11 +51,19 @@ async def start_solver(session, observation_space, action_space):
     solver_url = session.url + '/solver'
     await session.post_json(solver_params, url = solver_url)
 
-async def load_model(session, model):
+
+def load_model(session, model):
+    asyncio.run(__load_model(session, model))
+
+async def __load_model(session, model):
     load_model_url = session.url + '/load'
     await session.post_json(json.dumps({'text':model}), url = load_model_url)
 
-async def get_action(session, data, training = False):
+
+def get_action(session, data, training = False):
+    return asyncio.run(__get_action(session, data, training))
+
+async def __get_action(session, data, training):
     if training:
         play_url = session.url
     else:
@@ -59,10 +71,18 @@ async def get_action(session, data, training = False):
     data = await session.post_expected_json(json.dumps(data), url = play_url)
     return data
 
-async def store_in_memory(session, data):
+
+def store_in_memory(session, data):
+    asyncio.run(__store_in_memory(session, data))
+
+async def __store_in_memory(session, data):
     memory_url = session.url + '/memory'
     await session.post_json(json.dumps(data), url = memory_url)
 
-async def replay_experience(session):
+
+def replay_experience(session):
+    asyncio.run(__replay_experience(session))
+
+async def __replay_experience(session):
     replay_url = session.url + '/replay'
     await session.get_something(url = replay_url)

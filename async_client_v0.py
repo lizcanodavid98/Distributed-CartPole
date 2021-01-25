@@ -35,19 +35,19 @@ class TrainSolver:
         action_space = env.action_space.n 
     
           
-    async def play(self, play_episodes = 100, model = None):
+    def play(self, play_episodes = 100, model = None):
         self.play_episodes = play_episodes
         env = gym.make('CartPole-v1')
         observation_space = env.observation_space.shape[0]
         action_space = env.action_space.n
         episode = 0
         
-        await start_solver(session, observation_space, action_space)
+        start_solver(session, observation_space, action_space)
         
         if model is None:
             print("Can't load specified model.")
         else:
-            await load_model(session, model)
+            load_model(session, model)
         
         
         data = {
@@ -74,7 +74,7 @@ class TrainSolver:
                 step += 1
                 
                 
-                data = await get_action(session, data)
+                data = get_action(session, data)
                 action = data['action']
                 
                 state_next, reward, done, info = env.step(action)
@@ -96,13 +96,13 @@ class TrainSolver:
                     print('Run: ' + str(episode) + ', score: ' + str(step))
                     break
                 
-    async def train(self):
+    def train(self):
         env = gym.make('CartPole-v1')
         observation_space = env.observation_space.shape[0]
         action_space = env.action_space.n
         
         episode = 0
-        await start_solver(session, observation_space, action_space)
+        start_solver(session, observation_space, action_space)
         
         while episode < self.max_episodes:
             episode += 1
@@ -128,7 +128,7 @@ class TrainSolver:
     
                     step += 1
                     # env.render()
-                    data = await get_action(session, data, training = True)
+                    data = get_action(session, data, training = True)
                     state_next, reward, done, info = env.step(data['action'])
                     if not done:
                         reward = reward
@@ -141,7 +141,7 @@ class TrainSolver:
                     data["info"] = info
                     # data["action"] = action
                     
-                    await store_in_memory(session, data)
+                    store_in_memory(session, data)
                     
                     state = state_next
                     data['state'] = state.tolist()
@@ -151,7 +151,7 @@ class TrainSolver:
                         # self.score_table.append([episode, step])
                         # score_eval.store_score(episode, step)
                         break
-                    await replay_experience(session)
+                    replay_experience(session)
         
         
         
@@ -161,10 +161,11 @@ if __name__ == '__main__':
     session = new_session(url = 'http://127.0.0.1:8080')
     
     trainer = TrainSolver(100)
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
     # loop.run_until_complete(trainer.play(play_episodes = 10, model = 'cartpole_model_v3.h5'))
-    loop.run_until_complete(trainer.train())
-    loop.run_until_complete(session.close_session())
+    # # loop.run_until_complete(trainer.train())
+    # loop.run_until_complete(session.close_session())
   
 
-   
+    trainer.play(play_episodes = 1, model = 'cartpole_model_v3.h5')
+    session.close_session()
