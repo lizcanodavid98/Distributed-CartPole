@@ -1,15 +1,8 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Dec 31 10:31:10 2020
+Created on Thu Jan 26 12:29:10 2021
 
 @author: dasan
 """
-
-import asyncio
-from aiohttp import web
-import nest_asyncio
-from random import randint
-nest_asyncio.apply()
 
 from tensorflow import keras
 from keras.models import Sequential
@@ -37,13 +30,11 @@ class Network:
         self.memory = deque(maxlen=MAX_MEMORY)
         self.exploration_rate = 1.0
 
-        # self.model = Sequential()
-        # self.model.add(Dense(32, input_shape=(observation_space,), activation='relu'))
-        # self.model.add(Dense(32, activation='relu'))
-        # self.model.add(Dense(self.action_space, activation='linear'))
-        # self.model.compile(loss='mse', optimizer=Adam(lr=LEARNING_RATE))
-        
-        self.model = None
+        self.model = Sequential()
+        self.model.add(Dense(32, input_shape=(observation_space,), activation='relu'))
+        self.model.add(Dense(32, activation='relu'))
+        self.model.add(Dense(self.action_space, activation='linear'))
+        self.model.compile(loss='mse', optimizer=Adam(lr=LEARNING_RATE))
 
     def add_to_memory(self, state, action, reward, next_state, done):
         state_array = np.array(state)
@@ -96,72 +87,49 @@ class Network:
             self.model.fit(state_list, Q_values, verbose=0)
             self.exploration_rate *= EXPLORATION_DECAY
             self.exploration_rate = max(EXPLORATION_MIN, self.exploration_rate)
-            
-
-    def get_model(self):
-        return self.model
-
-async def handle_post(request):
-    data = await request.json()
-    
-    # await asyncio.sleep(randint(0,10)/100)
-    
-    data["action"] = int(solver.take_action(data['state']))
-    return web.json_response(data)
-
-async def no_replay_action(request):
-    data = await request.json()
-    data['action'] = int(solver.take_action_without_exploration(data['state']))
-    return web.json_response(data)
-
-async def solver(request):
-    data = await request.json()
-    
-    
-    solver.action_space = data['action-space']
-    solver.observation_space = data['observation-space']
-    
-    solver.model = Sequential()
-    solver.model.add(Dense(32, input_shape=(solver.observation_space,), activation='relu'))
-    solver.model.add(Dense(32, activation='relu'))
-    solver.model.add(Dense(solver.action_space, activation='linear'))
-    solver.model.compile(loss='mse', optimizer=Adam(lr=LEARNING_RATE))
-    
-   
-    return web.Response(text = 'Solver created.')
-
-async def memory(request):
-    data = await request.json()
-    state = data['state']
-    action = data['action']
-    reward = data['reward']
-    state_next = data['state_next']
-    done = data['done']
-    
-    solver.add_to_memory(state, action, reward, state_next, done)
-    return web.Response(text = 'State added to memory')
-
-async def experience_replay(request):
-    solver.experience_replay()
-    return web.Response(text = 'Experience replayed.')
-    
-async def load_model(request):
-    data = await request.json()
-    model = data['text']
-    solver.model = keras.models.load_model(model)
-    return web.Response(text = 'Loaded model')
-
-app = web.Application()
-app.add_routes([web.post('/', handle_post),
-                web.post('/play', no_replay_action),
-                web.post('/solver', solver),
-                web.post('/memory', memory),
-                web.get('/replay', experience_replay),
-                web.post('/load', load_model)
-                ])
-
-solver = Network(0,0)
 
 
-if __name__ == '__main__':
-    web.run_app(app)
+
+import json
+from flask import request, current_app
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/', methods = ['POST'])
+def take_action():
+    data = request.get_json(force=True)
+    data['action'] = int(current_app.solver.take_action(data['state']))
+    return json.dumps(data)
+
+@app.route('/play', methods = ['POST'])
+def take_action_no_replay():
+    data = request.get_json(force=True)
+    data['action'] = int(current_app.solver.take_action_without_exploration(data['state']))
+    return json.dumps(data)
+
+@app.route('/solver', methods = ['POST'])
+def init_solver():
+    data = request.get_json(force=True)
+
+    current_app.solver = Network(data['observation-space'], data['action-space'])
+    return 'Solver created'
+
+@app.route('/memory', methods = ['POST'])
+def store_to_memory():
+    data = request.get_json(force=True)
+    current_app.solver.add_to_memory(data['state'], data['action'], data['reward'], data['state_next'], data['done'])
+    return 'State added to memory'
+
+@app.route('/replay', methods = ['GET'])
+def experience_replay():
+    current_app.solver.experience_replay()
+    return 'Experienced replayed'
+
+@app.route('/load', methods = ['POST'])
+def load_model():
+    data = request.get_json(force=True)
+    current_app.solver.model = keras.models.load_model(data['text'])
+    return 'Model loaded'
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port = 8080)
