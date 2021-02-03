@@ -134,9 +134,9 @@ class TrainSolver:
                 total_actions += 1
                 data = get_action(session, data, pending_tasks, delay = self.delay, timeout = self.timeout)
 
-                print(session.timeouts)
+                # print(session.timeouts)
                 if data['action'] == 2:
-                        data['action'] = action
+                    data['action'] = action
                 
                 
                 state_next, reward, done, info = env.step(data['action'])
@@ -166,14 +166,18 @@ class TrainSolver:
         env = gym.make('CartPole-v1')
         observation_space = env.observation_space.shape[0]
         action_space = env.action_space.n
+
+        score_eval = ScoreEvaluator(400, 50, 'Train')
         
         episode = 0
+        total_actions = 0
         start_solver(session, observation_space, action_space)
         
         while episode < self.max_episodes:
             episode += 1
             state = env.reset()
             pending_tasks = []
+            
         
             data = {
             'action': 0,
@@ -193,37 +197,41 @@ class TrainSolver:
             
             while True:
     
-                    step += 1
-                    # env.render()
-                    action = data['action']
-                    data = get_action(session, data, pending_tasks, training = True)
+                step += 1
+                # env.render()
+                action = data['action']
+                total_actions += 1
+                data = get_action(session, data, pending_tasks, training = True, delay = self.delay, timeout = self.timeout)
 
-                    if data['action'] == 2:
-                        data['action'] = action
+                if data['action'] == 2:
+                    data['action'] = action
 
-                    state_next, reward, done, info = env.step(data['action'])
-                    if not done:
-                        reward = reward
-                    else:
-                        reward = -reward
-                        
-                    data["state_next"] = state_next.tolist()
-                    data["reward"] = reward
-                    data["done"] = done
-                    data["info"] = info
-                    # data["action"] = action
+                state_next, reward, done, info = env.step(data['action'])
+                if not done:
+                    reward = reward
+                else:
+                    reward = -reward
                     
-                    store_in_memory(session, data)
-                    
-                    state = state_next
-                    data['state'] = state.tolist()
-    
-                    if done:
-                        print("Run: " + str(episode) + ", score: " + str(step))
-                        # self.score_table.append([episode, step])
-                        # score_eval.store_score(episode, step)
-                        break
-                    replay_experience(session)
+                data["state_next"] = state_next.tolist()
+                data["reward"] = reward
+                data["done"] = done
+                data["info"] = info
+                # data["action"] = action
+                
+                store_in_memory(session, data)
+                
+                state = state_next
+                data['state'] = state.tolist()
+
+                if done:
+                    print("Run: " + str(episode) + ", score: " + str(step))
+                    # self.score_table.append([episode, step])
+                    # score_eval.store_score(episode, step)
+                    break
+                replay_experience(session)
+
+        score_eval.plot_evaluation(title = "Playing")
+        score_eval.store_to_file(self.delay,0, self.timeout, total_actions, session.timeouts)
         
         
         
@@ -241,13 +249,15 @@ if __name__ == '__main__':
     #         trainer.timeout = i/10
     #         print('Delay: {}, Timeout: {}'.format(trainer.delay, trainer.timeout))
     #         trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
+    #         session.timeouts = 0
             
-            
-    # for i in range(2,10,2):
-    #     trainer.delay = i/100
-    #     trainer.timeout = 0.1
-    #     trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
     
-    trainer.delay = 2
-    trainer.timeout = 1
-    trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
+    for i in range(0,5,1):
+        trainer.delay = i/100
+        trainer.timeout = 0.02
+        trainer.train()
+        session.timeouts = 0
+    
+    # trainer.delay = 0.3
+    # trainer.timeout = 0.15
+    # trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')

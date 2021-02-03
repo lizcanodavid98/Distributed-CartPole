@@ -40,6 +40,14 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
         play_url = session.url + '/play'
     task = asyncio.create_task(__get_data(data, play_url, delay))
 
+    try:
+        result = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+        return result
+    except asyncio.TimeoutError:
+        pending_tasks.append(task)
+        # print('Timeout')
+        session.timeouts += 1
+
     if len(pending_tasks) > 0:
         pending = pending_tasks[len(pending_tasks)-1]
 
@@ -50,14 +58,6 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
             return find_last_done(len(pending_tasks)-2, pending_tasks, data)
     else:
         data['action'] = 2
-    
-    try:
-        result = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
-        return result
-    except asyncio.TimeoutError:
-        pending_tasks.append(task)
-        # print('Timeout')
-        session.timeouts += 1
     
     return data
 
@@ -74,11 +74,11 @@ def find_last_done(index, pending_tasks, data):
     if index > -1:
         pending = pending_tasks[index]
         if pending.done():
-            for i in range(index):
+            for i in range(index+1):
                 pending_tasks.pop(i)
-                return pending.result()
+            return pending.result()
         else:
-            find_last_done(index-1, pending_tasks, data)
+            return find_last_done(index-1, pending_tasks, data)
 
     else:
         data['action'] = 2
