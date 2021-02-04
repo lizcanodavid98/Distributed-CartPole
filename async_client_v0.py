@@ -226,7 +226,7 @@ class TrainSolver:
                 if done:
                     print("Run: " + str(episode) + ", score: " + str(step))
                     # self.score_table.append([episode, step])
-                    # score_eval.store_score(episode, step)
+                    score_eval.store_score(episode, step)
                     break
                 replay_experience(session)
 

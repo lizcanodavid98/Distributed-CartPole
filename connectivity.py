@@ -75,7 +75,12 @@ def find_last_done(index, pending_tasks, data):
         pending = pending_tasks[index]
         if pending.done():
             for i in range(index+1):
-                pending_tasks.pop(i)
+                try:
+                    pending_tasks.pop(i)
+                except IndexError:
+                    data['action'] = 2
+                    print('Sa roto la cola')
+                    return data
             return pending.result()
         else:
             return find_last_done(index-1, pending_tasks, data)
