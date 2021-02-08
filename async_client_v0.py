@@ -16,7 +16,8 @@ import os
 
 
 from connectivity import get_action, load_model, start_solver, store_in_memory, replay_experience, new_session
-
+from logs import store_to_file, store_actions_to_file, clear_file
+from probe import get_timestamp
 
 class ScoreEvaluator:
 
@@ -26,8 +27,8 @@ class ScoreEvaluator:
         self.average_of_last_runs = average_of_last_runs
         self.execution_type = execution_type
 
-    def store_score(self, episode, step):
-        self.score_table.append([episode, step])
+    def store_score(self, episode, step, client_actions, server_actions):
+        self.score_table.append([episode, step, client_actions, server_actions])
 
     def plot_evaluation(self, title="Training"):
         # avg_score = mean(self.score_table[1])
@@ -46,36 +47,6 @@ class ScoreEvaluator:
         plt.xlabel("Runs")
         plt.ylabel("Score")
         plt.show()
-        
-            
-    def add_new_experiment(self,filename, experiment):
-        with open(filename, 'r+') as f:
-            if not f.read(1):
-                f.write('{"experiments":[\n')
-                
-            else:
-                f.read()
-                f.seek(f.tell() - 2, os.SEEK_SET)
-                f.write(',\n')
-                
-            f.write(experiment)
-            f.write(']}')
-        
-    def store_to_file(self, avg_delay, var_delay, timeout, total_actions, timeouts):
-        filename = 'results.txt'
-        with open(filename, 'a+'): #CREA EL FICHERO SI NO EXISTE
-            pass
-        experiment = {
-                    'Execution': self.execution_type,
-                    'Average Delay': avg_delay,
-                    # 'Variance': var_delay,
-                    'Timeout': timeout,
-                    'Total Actions': total_actions,
-                    'Total Timeouts': timeouts,
-                    'Results': self.score_table
-                }
-        
-        self.add_new_experiment(filename, json.dumps(experiment))
     
     
 class TrainSolver:
@@ -119,6 +90,9 @@ class TrainSolver:
             episode += 1
             state = env.reset()
             pending_tasks = []
+            actions = []
+            session.client_actions = [0,0,0]
+            session.server_actions = 0
             
             if type(state) != list:
                 data["state"] = state.tolist()
@@ -129,14 +103,27 @@ class TrainSolver:
             
             while True:
                 step += 1
-                
+                # env.render()
                 action = data['action']
                 total_actions += 1
+                # print('Before Get Action: ' + get_timestamp())
                 data = get_action(session, data, pending_tasks, delay = self.delay, timeout = self.timeout)
+                # print('After Get Action: ' + get_timestamp())
 
                 # print(session.timeouts)
+                actions.append(data['action'])
+                
                 if data['action'] == 2:
+                    session.client_actions[0] += 1
                     data['action'] = action
+                elif data['action'] == 3:
+                    session.client_actions[1] += 1
+                    data['action'] = action
+                elif data['action'] == 4:
+                    session.client_actions[2] += 1
+                    data['action'] = action
+                else: 
+                    session.server_actions += 1
                 
                 
                 state_next, reward, done, info = env.step(data['action'])
@@ -156,11 +143,12 @@ class TrainSolver:
                 
                 if done:
                     print('Run: ' + str(episode) + ', score: ' + str(step))
-                    score_eval.store_score(episode, step)
+                    store_actions_to_file('actions.txt', actions, episode, self.delay, self.timeout)
+                    score_eval.store_score(episode, step, session.client_actions, session.server_actions)
                     break
 
         score_eval.plot_evaluation(title = "Playing")
-        score_eval.store_to_file(self.delay,0, self.timeout, total_actions, session.timeouts)
+        store_to_file('results.txt', score_eval, self.delay, self.timeout, total_actions, session.timeouts)
                 
     def train(self):
         env = gym.make('CartPole-v1')
@@ -177,6 +165,8 @@ class TrainSolver:
             episode += 1
             state = env.reset()
             pending_tasks = []
+            session.client_actions = [0,0,0]
+            session.server_acitons = 0
             
         
             data = {
@@ -204,7 +194,16 @@ class TrainSolver:
                 data = get_action(session, data, pending_tasks, training = True, delay = self.delay, timeout = self.timeout)
 
                 if data['action'] == 2:
+                    session.client_actions[0] += 1
                     data['action'] = action
+                elif data['action'] == 3:
+                    session.client_actions[1] += 1
+                    data['action'] = action
+                elif data['action'] == 4:
+                    session.client_actions[2] += 1
+                    data['action'] = action
+                else: 
+                    session.server_actions += 1
 
                 state_next, reward, done, info = env.step(data['action'])
                 if not done:
@@ -226,20 +225,21 @@ class TrainSolver:
                 if done:
                     print("Run: " + str(episode) + ", score: " + str(step))
                     # self.score_table.append([episode, step])
-                    score_eval.store_score(episode, step)
+                    score_eval.store_score(episode, step, session.client_actions, session.server_actions)
                     break
                 replay_experience(session)
 
         score_eval.plot_evaluation(title = "Playing")
-        score_eval.store_to_file(self.delay,0, self.timeout, total_actions, session.timeouts)
+        store_to_file('results.txt', score_eval, self.delay, self.timeout, total_actions, session.timeouts)
         
         
         
         
 if __name__ == '__main__':
     
-    session = new_session(url = 'http://127.0.0.1:8080')
-    
+    session = new_session(url = 'http://127.0.0.1:5000')
+    clear_file('actions.txt')
+    clear_file('results.txt')
     trainer = TrainSolver(150)
   
     # trainer.train()
@@ -252,12 +252,13 @@ if __name__ == '__main__':
     #         session.timeouts = 0
             
     
-    for i in range(0,5,1):
-        trainer.delay = i/100
-        trainer.timeout = 0.02
-        trainer.train()
+    for i in [0, 15, 22, 50, 100, 150, 200, 250, 300, 350, 400]:
+        trainer.delay = i/1000
+        trainer.timeout = 0.05
+        trainer.play(play_episodes = 100, model = 'cartpole_model_v3.h5')
         session.timeouts = 0
     
-    # trainer.delay = 0.3
-    # trainer.timeout = 0.15
+    # trainer.delay = 0.1
+    # trainer.timeout = 0.05
     # trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
+    # trainer.play(play_episodes=2)

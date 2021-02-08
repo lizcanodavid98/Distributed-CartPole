@@ -3,11 +3,16 @@ import nest_asyncio
 import json
 import requests
 
+from probe import get_timestamp
+import datetime
+
 class mySession:
     def __init__(self, url):
         self.url = url
         nest_asyncio.apply()
         self.timeouts = 0
+        self.server_actions = 0
+        self.client_actions = [0,0,0]
     
 def new_session(url):
     s = mySession(url)
@@ -52,7 +57,7 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
         pending = pending_tasks[len(pending_tasks)-1]
 
         if pending.done():
-            pending_tasks.pop()
+            pending_tasks.clear()
             return pending.result()
         else:
             return find_last_done(len(pending_tasks)-2, pending_tasks, data)
@@ -63,11 +68,15 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
 
 
 async def __get_data(data, url, delay):
+    # print('Before Post: ' + get_timestamp())
     r = requests.post(url, data = json.dumps(data))
+    # print('After Post: ' + get_timestamp())
 
     data = json.loads(r.text)
     
+    # print('Before sleep: ' + get_timestamp())
     await asyncio.sleep(delay)
+    # print('After sleep: ' + get_timestamp())
     return data
 
 def find_last_done(index, pending_tasks, data):
@@ -78,7 +87,7 @@ def find_last_done(index, pending_tasks, data):
                 try:
                     pending_tasks.pop(i)
                 except IndexError:
-                    data['action'] = 2
+                    data['action'] = 3
                     print('Sa roto la cola')
                     return data
             return pending.result()
@@ -86,7 +95,7 @@ def find_last_done(index, pending_tasks, data):
             return find_last_done(index-1, pending_tasks, data)
 
     else:
-        data['action'] = 2
+        data['action'] = 4
         return data
 
 def store_in_memory(session, data):
