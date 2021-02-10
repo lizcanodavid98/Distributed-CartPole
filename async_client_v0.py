@@ -66,6 +66,7 @@ class TrainSolver:
         action_space = env.action_space.n
         episode = 0
         total_actions = 0
+        avg_latency = 0
         
         start_solver(session, observation_space, action_space)
 
@@ -93,6 +94,7 @@ class TrainSolver:
             actions = []
             session.client_actions = [0,0,0]
             session.server_actions = 0
+            session.latency.clear()
             
             if type(state) != list:
                 data["state"] = state.tolist()
@@ -136,14 +138,14 @@ class TrainSolver:
                 data["reward"] = reward
                 data["done"] = done
                 data["info"] = info
-                data["action"] = action
+                # data["action"] = action
                 
                 state = state_next
                 data['state'] = state.tolist()
                 
                 if done:
                     print('Run: ' + str(episode) + ', score: ' + str(step))
-                    store_actions_to_file('actions.txt', actions, episode, self.delay, self.timeout)
+                    store_actions_to_file('actions.txt', actions, episode, self.delay, self.timeout, round(np.mean(session.latency),1))
                     score_eval.store_score(episode, step, session.client_actions, session.server_actions)
                     break
 
@@ -159,30 +161,33 @@ class TrainSolver:
         
         episode = 0
         total_actions = 0
+        avg_latency = 0
+
         start_solver(session, observation_space, action_space)
-        
-        while episode < self.max_episodes:
-            episode += 1
-            state = env.reset()
-            pending_tasks = []
-            session.client_actions = [0,0,0]
-            session.server_acitons = 0
-            
-        
-            data = {
+
+        data = {
             'action': 0,
             'state': [0,0,0,0],
             'state_next': [0,0,0,0],
             'reward': 1.0,
             'done': True,
             'info': {}
-            }
+        }
+        
+        while episode < self.max_episodes:
+            episode += 1
+            state = env.reset()
+            pending_tasks = []
+            actions = []
+            session.client_actions = [0,0,0]
+            session.server_actions = 0
+            session.latency.clear()
             
             if type(state) != list:
                 data["state"] = state.tolist()
             else:
                 data["state"] = state
-                
+            
             step = 0
             
             while True:
@@ -192,6 +197,8 @@ class TrainSolver:
                 action = data['action']
                 total_actions += 1
                 data = get_action(session, data, pending_tasks, training = True, delay = self.delay, timeout = self.timeout)
+
+                actions.append(data['action'])
 
                 if data['action'] == 2:
                     session.client_actions[0] += 1
@@ -204,6 +211,7 @@ class TrainSolver:
                     data['action'] = action
                 else: 
                     session.server_actions += 1
+                
 
                 state_next, reward, done, info = env.step(data['action'])
                 if not done:
@@ -224,7 +232,7 @@ class TrainSolver:
 
                 if done:
                     print("Run: " + str(episode) + ", score: " + str(step))
-                    # self.score_table.append([episode, step])
+                    store_actions_to_file('actions.txt', actions, episode, self.delay, self.timeout, round(np.mean(session.latency),1))
                     score_eval.store_score(episode, step, session.client_actions, session.server_actions)
                     break
                 replay_experience(session)
@@ -241,8 +249,10 @@ if __name__ == '__main__':
     clear_file('actions.txt')
     clear_file('results.txt')
     trainer = TrainSolver(150)
-  
-    # trainer.train()
+
+    trainer.delay = 0.15
+    trainer.timeout = 0.05
+    trainer.train()
     # for i in range(1,5):
     #     for j in range(int(i/5*10), int(i*10), 2*i):
     #         trainer.delay = j/100
@@ -252,13 +262,13 @@ if __name__ == '__main__':
     #         session.timeouts = 0
             
     
-    for i in [0, 15, 22, 50, 100, 150, 200, 250, 300, 350, 400]:
-        trainer.delay = i/1000
-        trainer.timeout = 0.05
-        trainer.play(play_episodes = 100, model = 'cartpole_model_v3.h5')
-        session.timeouts = 0
+    # for i in [0, 15, 22, 50, 100, 150, 200, 250, 300, 350, 400]:
+    #     trainer.delay = i/1000
+    #     trainer.timeout = 0.05
+    #     trainer.play(play_episodes = 100, model = 'cartpole_model_v3.h5')
+    #     session.timeouts = 0
     
-    # trainer.delay = 0.1
+    # trainer.delay = 0.021
     # trainer.timeout = 0.05
     # trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
     # trainer.play(play_episodes=2)

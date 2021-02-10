@@ -3,7 +3,7 @@ import nest_asyncio
 import json
 import requests
 
-from probe import get_timestamp
+from probe import get_microsecond, get_timestamp
 import datetime
 
 class mySession:
@@ -13,6 +13,7 @@ class mySession:
         self.timeouts = 0
         self.server_actions = 0
         self.client_actions = [0,0,0]
+        self.latency = []
     
 def new_session(url):
     s = mySession(url)
@@ -43,7 +44,7 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
         play_url = session.url
     else:
         play_url = session.url + '/play'
-    task = asyncio.create_task(__get_data(data, play_url, delay))
+    task = asyncio.create_task(__get_data(session, data, play_url, delay))
 
     try:
         result = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
@@ -67,10 +68,16 @@ async def __get_action(session, data, training, pending_tasks, delay, timeout):
     return data
 
 
-async def __get_data(data, url, delay):
-    # print('Before Post: ' + get_timestamp())
+async def __get_data(session, data, url, delay):
+    tmp = get_microsecond()
+    # print('Before :' + get_timestamp())
     r = requests.post(url, data = json.dumps(data))
-    # print('After Post: ' + get_timestamp())
+    # print('After  :' + get_timestamp())
+    diff = get_microsecond()-tmp
+    if diff < 0:
+        diff = 1e6+diff
+    session.latency.append(diff/1000)
+    
 
     data = json.loads(r.text)
     

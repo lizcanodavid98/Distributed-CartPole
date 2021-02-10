@@ -20,5 +20,9 @@ def get_timestamp():
     time = datetime.datetime.now()
     return str(time.second) + ':' + str(time.microsecond)
 
+def get_microsecond():
+    time = datetime.datetime.now()
+    return time.microsecond
+
 if __name__ == "__main__":
     test_precission()

@@ -37,13 +37,14 @@ def store_to_file(filename, score_eval, avg_delay, timeout, total_actions, timeo
     
     add_new_experiment(filename, json.dumps(experiment))
 
-def store_actions_to_file(filename, actions, episode, delay, timeout):
+def store_actions_to_file(filename, actions, episode, delay, timeout, avg_latency):
     with open(filename, 'a+'):
         pass
     experiment = {
         'Delay': delay,
         'Timeout': timeout,
         'Episode': episode,
+        'Avg. Server Delay': avg_latency,
         'actions': actions
     }
 
