@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import os
+import aiohttp
 
 
 from connectivity import get_action, load_model, start_solver, store_in_memory, replay_experience, new_session
@@ -66,7 +67,6 @@ class TrainSolver:
         action_space = env.action_space.n
         episode = 0
         total_actions = 0
-        avg_latency = 0
         
         start_solver(session, observation_space, action_space)
 
@@ -158,10 +158,11 @@ class TrainSolver:
         action_space = env.action_space.n
 
         score_eval = ScoreEvaluator(400, 50, 'Train')
+        aiohttp_timeout = aiohttp.ClientTimeout(total=self.timeout)
         
         episode = 0
         total_actions = 0
-        avg_latency = 0
+        finished_training = False
 
         start_solver(session, observation_space, action_space)
 
@@ -174,7 +175,7 @@ class TrainSolver:
             'info': {}
         }
         
-        while episode < self.max_episodes:
+        while episode < self.max_episodes and not finished_training:
             episode += 1
             state = env.reset()
             pending_tasks = []
@@ -225,7 +226,7 @@ class TrainSolver:
                 data["info"] = info
                 # data["action"] = action
                 
-                store_in_memory(session, data)
+                store_in_memory(session, data, aiohttp_timeout)
                 
                 state = state_next
                 data['state'] = state.tolist()
@@ -234,8 +235,19 @@ class TrainSolver:
                     print("Run: " + str(episode) + ", score: " + str(step))
                     store_actions_to_file('actions.txt', actions, episode, self.delay, self.timeout, round(np.mean(session.latency),1))
                     score_eval.store_score(episode, step, session.client_actions, session.server_actions)
+
+                    if len(score_eval.score_table) > 5:
+                        s = []
+                        l = len(score_eval.score_table)
+                        for i in range(5):
+                            s.append(score_eval.score_table[l-1-i][1])
+                        mean_score = np.mean(s)
+                        # print(mean_score)
+                        
+                        if mean_score > 190:
+                            finished_training = True
                     break
-                replay_experience(session)
+                replay_experience(session, aiohttp_timeout)
 
         score_eval.plot_evaluation(title = "Playing")
         store_to_file('results.txt', score_eval, self.delay, self.timeout, total_actions, session.timeouts)
@@ -245,14 +257,14 @@ class TrainSolver:
         
 if __name__ == '__main__':
     
-    session = new_session(url = 'http://127.0.0.1:5000')
-    clear_file('actions.txt')
-    clear_file('results.txt')
+    session = new_session(url = 'http://10.3.250.55:5000')
+    # clear_file('actions.txt')
+    # clear_file('results.txt')
     trainer = TrainSolver(150)
 
-    trainer.delay = 0.15
-    trainer.timeout = 0.05
-    trainer.train()
+    # trainer.delay = 0.15
+    # trainer.timeout = 0.05
+    # trainer.train()
     # for i in range(1,5):
     #     for j in range(int(i/5*10), int(i*10), 2*i):
     #         trainer.delay = j/100
@@ -262,13 +274,16 @@ if __name__ == '__main__':
     #         session.timeouts = 0
             
     
-    # for i in [0, 15, 22, 50, 100, 150, 200, 250, 300, 350, 400]:
-    #     trainer.delay = i/1000
-    #     trainer.timeout = 0.05
-    #     trainer.play(play_episodes = 100, model = 'cartpole_model_v3.h5')
-    #     session.timeouts = 0
+    for i in [70,60,50]:
+        trainer.delay = 0
+        trainer.timeout = i/1000
+        # trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
+        trainer.train()
+        session.timeouts = 0
     
-    # trainer.delay = 0.021
-    # trainer.timeout = 0.05
+    # trainer.delay = 0
+    # trainer.timeout = 0.1
     # trainer.play(play_episodes = 2, model = 'cartpole_model_v3.h5')
     # trainer.play(play_episodes=2)
+
+    session.close_session()
